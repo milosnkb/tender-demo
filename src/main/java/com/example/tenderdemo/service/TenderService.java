@@ -1,5 +1,7 @@
 package com.example.tenderdemo.service;
 
+import com.example.tenderdemo.error.ErrorReport;
+import com.example.tenderdemo.error.TenderServiceException;
 import com.example.tenderdemo.model.Offer;
 import com.example.tenderdemo.model.Status;
 import com.example.tenderdemo.model.Tender;
@@ -7,8 +9,12 @@ import com.example.tenderdemo.repository.TenderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Service layer that performs service logic
@@ -48,14 +54,17 @@ public class TenderService {
      * @param offer    the offer
      * @return the tender
      */
+    @Transactional
     public Tender addOfferToTender(String tenderId, Offer offer) {
         Tender tender = getTender(tenderId).orElse(null);
         if (tender != null) {
             offer.setStatus(Status.PENDING);
             offer.setId(UUID.randomUUID().toString());
             tender.getOffers().add(offer);
+            tender = createTender(tender);
+            return tender;
         }
-        return createTender(tender);
+        throw new TenderServiceException(ErrorReport.NOT_FOUND);
     }
 
 
@@ -67,17 +76,21 @@ public class TenderService {
      * @return the tender
      * @throws Exception the exception
      */
-    public Tender acceptOffer(String tenderId, Offer offer) throws Exception {
+    @Transactional
+    public Tender acceptOffer(String tenderId, Offer offer) {
         if (!offer.getStatus().equals(Status.ACCEPTED))
-            throw new Exception();
+            throw new TenderServiceException(ErrorReport.BAD_REQUEST);
         Tender tender = getTender(tenderId).orElse(null);
-        if (tender != null && tender.getOffers().stream().noneMatch(o -> o.getStatus().equals(Status.ACCEPTED)) &&
+        if (tender == null) {
+            throw new TenderServiceException(ErrorReport.NOT_FOUND);
+        }
+        if (tender.getOffers().stream().noneMatch(o -> o.getStatus().equals(Status.ACCEPTED)) &&
                 tender.getOffers().stream().anyMatch(o -> offer.getId().equals(o.getId()))) {
             tender.getOffers().forEach(
                     o -> o.setStatus(o.getId().equals(offer.getId()) ? Status.ACCEPTED : Status.REJECTED));
             tender = createTender(tender);
         } else {
-            throw new Exception();
+            throw new TenderServiceException(ErrorReport.BAD_REQUEST);
         }
         return tender;
     }
@@ -89,11 +102,10 @@ public class TenderService {
      * @return offers for tender
      * @throws Exception the exception
      */
-    public List<Offer> getOffersForTender(String tenderId) throws Exception {
-        Optional<Tender> optional = tenderRepository.findById(tenderId);
+    public List<Offer> getOffersForTender(String tenderId) {
         Tender tender = getTender(tenderId).orElse(null);
         if (tender == null) {
-            throw new Exception();
+            throw new TenderServiceException(ErrorReport.NOT_FOUND);
         }
         return tender.getOffers();
     }
@@ -123,8 +135,8 @@ public class TenderService {
         } else {
             tenders = tenderRepository.findTendersByIdAndPath(bidder, tenderId);
         }
-        List<Offer> offers = new LinkedList<>();
-        tenders.forEach(t -> offers.addAll(t.getOffers()));
+        List<Offer> offers = tenders.stream().flatMap(t -> t.getOffers().stream()).collect(Collectors.toList()).stream().
+                filter(o -> o.getBidder().equals(bidder)).collect(Collectors.toList());
         return offers;
     }
 

@@ -26,7 +26,7 @@ public interface TenderRepository extends MongoRepository<Tender, String> {
      * @param id     the id
      * @return the list
      */
-    @Query(value = "{'offers':{$elemMatch:{'bidder':?0}},'_id':ObjectId(?1)}", fields = "{'offers':{$elemMatch:{'bidder':?0}}}")
+    @Query(value = "{'offers':{$elemMatch:{'bidder':?0}},'_id':ObjectId(?1)}")
     List<Tender> findTendersByIdAndPath(String bidder, String id);
 
     /**
@@ -35,7 +35,7 @@ public interface TenderRepository extends MongoRepository<Tender, String> {
      * @param bidder the bidder
      * @return the list
      */
-    @Query(value = "{'offers':{$elemMatch:{'bidder':?0}}}", fields = "{'offers':{$elemMatch:{'bidder':?0}}}")
+    @Query(value = "{'offers':{$elemMatch:{'bidder':?0}}}")
     List<Tender> findTendersByIdAndPath(String bidder);
 
 }
